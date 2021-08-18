@@ -1,30 +1,38 @@
-import os
-
-import keras
-from keras.datasets import mnist     # MNIST dataset is included in Keras
-import numpy as np
-import pandas as pd
 import streamlit as st
-import random
+import pandas as pd
+import os
+import errno
+import openpyxl
+import base64
+import io
+from datetime import datetime
+import warnings
 
-st.title("Streamlit <-> Heroku Template App")
+warnings.filterwarnings('ignore')
 
-# load mnist dataset, test set
-(_, _), (x_test, y_test) = mnist.load_data()
 
-# load model from file
-model = keras.models.load_model(os.path.join("mlmodels", "mnist_model1"))
+st.title('EXCEL編集ツール：列抽出')
+try:
+    file = st.file_uploader("ファイル（.xlsx）をアップロードしてください", type='xlsx')
+    df = pd.read_excel(file, engine='openpyxl')
+    col_list = df.columns.unique()
+    choose_columns = st.multiselect("抽出する行を選んでください",col_list)
+    df2 = df[choose_columns]
+    st.write(df2)
+    towrite = io.BytesIO()
+    download_file = df2.to_excel(towrite, encoding='utf-8', index=False, header = True)
+    towrite.seek(0)
+    b64 = base64.b64encode(towrite.read()).decode()
+    linko= f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="editted_file.xlsx">ダウンロードはこちら</a>'
+    st.markdown("▶ "+linko, unsafe_allow_html=True)
+except (ValueError, NameError):
+    pass #ファイルアップロードしないとエラーが発生し続けるため
+except FileNotFoundError:
+    st.error("ファイルが見つかりません")
 
-# if button clicked, classify
-if st.button("Get Next Random Digit"):
-    # get random image from the test set
-    random_idx = random.randint(0, x_test.shape[0]-1)
-    digit_img = x_test[random_idx, :,:]
-    
-    # show the image
-    st.image(digit_img)
-
-    # classify
-    prediction = model.predict(digit_img.reshape([1, 28,28,1]))[0]
-    st.text("Predicted to be  : {}".format(np.argmax(prediction)))
-    st.text("And the truth is : {}".format(y_test[random_idx]))
+st.sidebar.markdown("""
+## 使い方
+1. .xlsxファイルをアップロード（データは保存されません）
+2. 抽出したい行を選択
+3. 「ダウンロードはこちら」をクリック
+""")
